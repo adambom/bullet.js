@@ -1,0 +1,162 @@
+<html>
+<head>
+
+ </head> 
+ <body onload="loaded();"> 
+   <canvas id="canvas" width="400" height="400"></canvas> 
+   
+   <script src="bullet.min.js"></script>
+   <script type="text/javascript">
+   var va=new Array(8);
+   for (var h=va.length-1;h>=0;h--) va[h]=new Vecmath.Vec4();//0,0,0,1);
+   var v3h=new Vecmath.Vec3(20,20,20);
+   var fi=[[1,0,6,7],[7,6,4,5],[5,4,2,3],[3,2,0,1],[1,7,5,3],[6,0,2,4]];
+   var b=new Vecmath.Mat4();
+   var b2=new Vecmath.Mat4();
+   var hh=0;
+   var v3h=new Vecmath.Vec3(),vh0=new Vecmath.Vec3(),vh1=new Vecmath.Vec3(),vh2=new Vecmath.Vec3(),cr=new Vecmath.Vec3();
+   var ot=new Date().getTime();
+   var dynamicsWorld;
+   var t0=new Date().getTime(),ta=0,oi=0;
+   var y0=20;
+   var fpsS='n/a',fpsT=0,fpsC=0;
+
+   function loaded() {
+     var collision_config = new Bullet.CollisionConfiguration();
+     var dispatcher = new Bullet.Dispatcher(collision_config);
+     var worldAabbMin = new Vecmath.Vec3(-10000, -10000, -10000);
+     var worldAabbMax = new Vecmath.Vec3(10000, 10000, 10000);
+     var overlappingPairCache = new Bullet.BroadphaseInterface(worldAabbMin, worldAabbMax, 0xfffe, 0xffff, 16384, null);
+     var constraintSolver = new Bullet.ConstraintSolver();
+     dynamicsWorld = new Bullet.CollisionWorld(dispatcher, overlappingPairCache, constraintSolver, collision_config);
+     dynamicsWorld.setGravity(new Vecmath.Vec3(0,-30,0));
+
+     {
+     var groundShape=new Bullet.BoxShape(new Vecmath.Vec3(200,10,200));
+     var groundTransform=new Bullet.Transform();
+     groundTransform.setIdentity();
+     groundTransform.origin.set3(0,-25,0);
+     var localInertia=new Vecmath.Vec3(0,0,0);
+     //var myMotionState=new Bullet.MotionState(groundTransform);
+     var cInfo = new Bullet.RigidBodyConstructionInfo(0, null, groundShape, localInertia);
+     var body=new Bullet.RigidBody(cInfo);
+     body.setWorldTransform(groundTransform);
+     dynamicsWorld.addRigidBody(body);
+     var out=new Vecmath.Vec3();
+     groundShape.getHalfExtentsWithoutMargin(out);
+     }
+     draw();
+   }
+   function draw() {
+     var canvas = document.getElementById("canvas");
+     if (!canvas.getContext) { setTimeout(draw,1000);return; }
+     //---run
+     var t1=new Date().getTime();
+     var ms=(t1-t0);t0=t1;
+     fpsT+=ms;fpsC++;if (fpsT>=3000) { fpsS=""+fpsC*1000/fpsT;fpsT=0;fpsC=0;var i=fpsS.indexOf(".");if (i!=-1) fpsS=fpsS.substr(0,i+2); }
+     var minFPS = 1000 / 60;
+     if (ms > minFPS) ms = minFPS;
+
+
+     ta+=ms;
+     if (ta>750) {
+       var c=dynamicsWorld.getNumCollisionObjects();
+       if (c<20) {
+         var groundShape = new Bullet.BoxShape(new Vecmath.Vec3(4,1,4));
+         var groundTransform = new Bullet.Transform();
+         groundTransform.setIdentity();
+         groundTransform.origin.set3(0,y0,0);
+         var localInertia = new Vecmath.Vec3(0,0,0);var mass=2;
+         groundShape.calculateLocalInertia(mass,localInertia);
+         var cInfo = new Bullet.RigidBodyConstructionInfo(mass,null,groundShape,localInertia);
+         cInfo.linearDamping=0.5;
+         cInfo.angularDamping=0.5;
+         var body = new Bullet.RigidBody(cInfo);
+         body.setWorldTransform(groundTransform);
+         dynamicsWorld.addRigidBody(body);
+       } else {
+         oi++;
+         if (oi>=c) oi=1;
+         var colObj=dynamicsWorld.collisionObjects[oi];
+         var t=new Bullet.Transform();
+         t.setIdentity();
+         t.origin.set3(0,y0,0);
+         colObj.setWorldTransform(t);
+         Bullet.RigidBody.upcast(colObj).setActivationState(Bullet.CollisionObject.DISABLE_DEACTIVATION);
+       }
+       ta=0;
+     }
+
+     //ullet.log(dynamicsWorld.collisionObjects[1].worldTransform);
+     dynamicsWorld.stepSimulation1(ms/1000);
+     //ullet.log(dynamicsWorld.collisionObjects[1].worldTransform);
+     //if (1==1) throw new Error("€");
+
+     //---paint
+     var ctx = canvas.getContext("2d");
+     ctx.fillStyle="#646464";
+     var cw=canvas.width;var ch=canvas.height;var cw2=cw/2;var ch2=ch/2;
+     ctx.fillRect(0,0,cw,ch);
+     //var t=new Date().getTime();
+     //var dt=t-ot;ot=t;
+     var vf=new Array();
+     var c=dynamicsWorld.getNumCollisionObjects();
+     //Bullet.out("c="+c);
+     var m=new Bullet.Transform();
+
+     for (var i=1;i<c;i++) {
+       var colObj=dynamicsWorld.collisionObjects[i];
+       var body = Bullet.RigidBody.upcast(colObj);
+       colObj.getWorldTransform(m);
+       var bs=colObj.collisionShape;//colObj
+       bs.getHalfExtentsWithMargin(v3h);
+       b2.rotX(0.2);
+       b=m.getMatrix(b);
+       //if (i==1) Bullet.out(c+" "+m);
+       b2.mul1(b);
+       va[0].set4(-v3h.x,-v3h.y,-v3h.z,1);va[1].set4(-v3h.x,v3h.y,-v3h.z,1);
+       va[2].set4(-v3h.x,-v3h.y,v3h.z,1);va[3].set4(-v3h.x,v3h.y,v3h.z,1);
+       va[4].set4(v3h.x,-v3h.y,v3h.z,1);va[5].set4(v3h.x,v3h.y,v3h.z,1);
+       va[6].set4(v3h.x,-v3h.y,-v3h.z,1);va[7].set4(v3h.x,v3h.y,-v3h.z,1);
+       for (var j=va.length-1;j>=0;j--) b2.transform1(va[j]);
+       for (var j=fi.length-1;j>=0;j--) {
+         var ia=fi[j];
+         var v0=va[ia[0]];
+         var v1=va[ia[1]];
+         var v2=va[ia[2]];
+         var v3=va[ia[3]];
+         vh0.set3(v0.x,v0.y,v0.z);
+         vh1.set3(v1.x,v1.y,v1.z);
+         vh2.set3(v2.x,v2.y,v2.z);
+         vh0.sub1(vh1);
+         vh2.sub1(vh1);
+         cr.cross(vh0,vh2);
+         if (cr.z<0) continue;
+         cr.normalize();
+         var f=new Object();//Vecmath.Face();
+         f.c="rgb("+Math.floor(cr.z*230)+","+Math.floor(cr.z*200)+","+Math.floor(cr.z*100)+")";
+         f.z=(v0.z+v1.z+v2.z+v3.z)/4;
+         f.fa=[v0.x*10+cw2,ch2-v0.y*10,v1.x*10+cw2,ch2-v1.y*10,v2.x*10+cw2,ch2-v2.y*10,v3.x*10+cw2,ch2-v3.y*10];
+         for (var k=0;k<vf.length;k++) if (vf[k].z<f.z) { vf.splice(k,0,f);f=null;break; }
+         if (f!=null) vf.push(f);
+       }
+     }
+     for (var h=vf.length-1;h>=0;h--) {
+       var f=vf[h];
+       ctx.fillStyle=f.c;
+       ctx.beginPath();
+       ctx.moveTo(f.fa[0],f.fa[1]);//v0.x+cw2,ch2-v0.y);
+       ctx.lineTo(f.fa[2],f.fa[3]);//v1.x+cw2,ch2-v1.y);
+       ctx.lineTo(f.fa[4],f.fa[5]);//v2.x+cw2,ch2-v2.y);
+       ctx.lineTo(f.fa[6],f.fa[7]);//v3.x+cw2,ch2-v3.y);
+       ctx.lineTo(f.fa[0],f.fa[1]);//v0.x+cw2,ch2-v0.y);
+       ctx.fill();
+     }
+     ctx.fillStyle='#00ff00';
+     ctx.fillText("Fps: "+fpsS,5,15);
+     setTimeout(draw,1);
+   }
+</script>
+   
+ </body>
+</html>
